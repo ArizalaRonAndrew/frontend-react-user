@@ -1,0 +1,6 @@
+export const gradeData = {
+  "Grade 7": ["Opal", "Emerald", "Feldspar", "Amethyst", "Peridot", "Confucius", "Diamond", "Pearl", "Bloodstone", "Amber", "Ivory", "Sipnayan", "Ace", "Onyx", "Moonstone", "Garnet", "Euclase", "Beryl", "Nephrite/Septarian", "Jade", "Coral", "Horn", "Bixbite"],
+  "Grade 8": ["Haynayan", "Yellowbell", "Daisy", "Hyacinth", "Nemesia", "Rose", "Orchids", "Ursinia", "Carnation", "Azalea", "Sampaguita", "Poinsettia", "Spike", "Sunflower", "Violeta", "Camellia", "Lirio", "Ilang Ilang", "Tulip", "Santan", "Lily", "Everlasting", "Rosal", "Camia"],
+  "Grade 9": ["Mendel", "Rutherford", "Boyle", "Lavoisier/Faraday", "Franklin", "Kapnayan", "Celsius/Archimides/Faraday", "Bohr", "Becquerel", "Darwin", "Dalton", "Fahreinheit", "Hertz", "Pascal", "Nobel", "Newton", "Hooke", "Euler", "Chadwick", "Galileo", "Goldstein", "Strike", "Fleming/Copernicus/Moseley", "Kelvin", "Maxwell"],
+  "Grade 10": ["AGUINALDO", "JACINTO", "MABINI", "LAPULAPU", "SILANG/BURGOS", "LUNA", "PONCE", "SOLIMAN", "DAGOHOY/GOMEZ", "GUERRERO", "TECSON/RICARTE", "VALENZUELA", "Recto", "Malvar", "Smash", "Magbanua", "Laurel", "Felipe", "Del Pilar", "Palma", "Rizal", "Aquino", "Agoncillo", "Silang/Burgos", "Lakandula", "Apacible", "Escoda", "Zamora", "Bonifacio", "Lipnayan", "Lopez/Jaena", "BALTAZAR", "Tecson"]
+};
