@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { 
-  Search, Eye, Calendar, CheckCircle, XCircle, Clock, Trash2, MapPin, Package, User, Phone, Mail, CheckSquare 
+  Search, Eye, Calendar, CheckCircle, XCircle, Clock, Trash2, MapPin, Package, User, Phone, Mail, CheckSquare, AlertTriangle, ChevronRight, AlertCircle 
 } from "lucide-react";
 import Modal from "../../components/admin/Modal"; 
 import { getAllBookings, updateBookingStatus, deleteBooking } from "../../services/BookingService";
@@ -71,8 +71,70 @@ const BookingList = () => {
 
   const statusOptions = ["All", "Pending", "Confirmed", "Completed", "Cancelled"];
 
+  // --- DATE & URGENCY LOGIC ---
+  const normalizeDate = (dateInput) => {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return "";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const todayObj = new Date();
+  const tomorrowObj = new Date(todayObj);
+  tomorrowObj.setDate(todayObj.getDate() + 1);
+
+  const todayKey = normalizeDate(todayObj);
+  const tomorrowKey = normalizeDate(tomorrowObj);
+
+  const bookingToday = bookings.find(
+    (b) => b.status === "Confirmed" && normalizeDate(b.date) === todayKey
+  );
+
+  const bookingTomorrow = bookings.find(
+    (b) => b.status === "Confirmed" && normalizeDate(b.date) === tomorrowKey
+  );
+  // --------------------------------
+
   return (
     <div className="space-y-6 h-full flex flex-col p-4 lg:p-8">
+      
+      {/* --- RED BANNER (TODAY) --- */}
+      {bookingToday && (
+        <div 
+          onClick={() => setSelectedBooking(bookingToday)} 
+          className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm cursor-pointer hover:bg-red-100 transition group shrink-0"
+        >
+          <div className="flex items-start">
+            <AlertTriangle className="w-5 h-5 text-red-600 mr-3 mt-0.5 animate-pulse" />
+            <div className="flex-1">
+              <h4 className="font-bold text-red-800 group-hover:underline">Action Required: Event TODAY!</h4>
+              <p className="text-sm text-red-700 mt-1">
+                You have a confirmed event scheduled for <b>Today</b> with {bookingToday.fullname}.
+              </p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-red-400 group-hover:translate-x-1 transition" />
+          </div>
+        </div>
+      )}
+
+      {/* --- ORANGE BANNER (TOMORROW) --- */}
+      {bookingTomorrow && (
+        <div 
+          onClick={() => setSelectedBooking(bookingTomorrow)} 
+          className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-lg shadow-sm cursor-pointer hover:bg-orange-100 transition group shrink-0"
+        >
+          <div className="flex items-start">
+            <AlertCircle className="w-5 h-5 text-orange-600 mr-3 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="font-bold text-orange-800 group-hover:underline">Upcoming: Event Tomorrow</h4>
+              <p className="text-sm text-orange-700 mt-1">
+                Prepare for tomorrow's booking with <b>{bookingTomorrow.fullname}</b>.
+              </p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-orange-400 group-hover:translate-x-1 transition" />
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Booking Management</h2>
@@ -145,17 +207,23 @@ const BookingList = () => {
                     <td className="px-6 py-4">
                       <div className="flex justify-center gap-2">
                         <button onClick={() => setSelectedBooking(booking)} className="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition"><Eye className="w-4 h-4" /></button>
+                        
                         {(booking.status || "Pending") === 'Pending' && (
                           <>
                             <button onClick={() => handleStatusUpdate(booking.userID, 'Confirmed')} className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition"><CheckCircle className="w-4 h-4" /></button>
                             <button onClick={() => handleStatusUpdate(booking.userID, 'Cancelled')} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"><XCircle className="w-4 h-4" /></button>
                           </>
                         )}
+
                         {booking.status === 'Confirmed' && (
                             <button onClick={() => handleStatusUpdate(booking.userID, 'Completed')} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Mark as Completed"><CheckSquare className="w-4 h-4" /></button>
                         )}
                         
-                        {/* UPDATED: Only show Delete button if status is Cancelled */}
+                        {/* --- NEW CODE: ADDED DELETE BUTTON FOR COMPLETED --- */}
+                        {booking.status === 'Completed' && (
+                          <button onClick={() => handleDelete(booking.userID)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Delete Completed"><Trash2 className="w-4 h-4" /></button>
+                        )}
+
                         {booking.status === 'Cancelled' && (
                           <button onClick={() => handleDelete(booking.userID)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"><Trash2 className="w-4 h-4" /></button>
                         )}

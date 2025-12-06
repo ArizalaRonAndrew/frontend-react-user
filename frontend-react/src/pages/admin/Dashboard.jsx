@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { CalendarCheck, Clock, IdCard, PhilippinePeso, Camera, UserPlus } from "lucide-react";
+// Changed BookCheck to CalendarCheck, and PhilippinePeso to Banknote
+import { CalendarCheck, Clock, IdCard, Banknote, Camera, UserPlus } from "lucide-react";
 import StatCard from '../../components/admin/StatCard';
 import { getAllBookings } from '../../services/BookingService';
 import { getAllStudents } from '../../services/StudentIdService';
@@ -16,7 +17,6 @@ const Dashboard = () => {
                 getAllStudents()
             ]);
 
-            // Safety check for arrays
             setBookings(Array.isArray(bookingsData) ? bookingsData : []);
             setStudents(Array.isArray(studentsData) ? studentsData : []);
             
@@ -35,22 +35,49 @@ const Dashboard = () => {
   const revenue = completedBookingsCount * 5000;
 
   // --- CALENDAR LOGIC ---
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
+  const todayObj = new Date();
+  const currentMonth = todayObj.getMonth();
+  const currentYear = todayObj.getFullYear();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay(); 
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+  // HELPER: Normalize any date input to a simple "YYYY-MM-DD" string
+  const formatDateKey = (dateInput) => {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return ""; 
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayKey = formatDateKey(new Date());
+
+  // Helper: Determine status for a specific day cell
   const getDayStatus = (day) => {
-      const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const isOccupied = bookings.some(b => b.date === dateString && b.status === 'Confirmed');
-      const isToday = dateString === today.toISOString().split('T')[0];
+      const cellDate = new Date(currentYear, currentMonth, day);
+      const cellDateKey = formatDateKey(cellDate);
+      
+      const isToday = cellDateKey === todayKey;
+      const isFuture = cellDateKey > todayKey; 
+      
+      let isOccupied = false;
+
+      // RULE: Only mark as occupied if it is strictly a FUTURE date (Tomorrow onwards)
+      if (isFuture) {
+          isOccupied = bookings.some(b => {
+               const bookingDateKey = formatDateKey(b.date);
+               return bookingDateKey === cellDateKey && b.status === 'Confirmed';
+          });
+      }
+
       return { isOccupied, isToday };
   };
 
   return (
     <div className="space-y-6 h-full overflow-y-auto p-4 lg:p-8">
+      
       <h2 className="text-2xl font-bold text-slate-800">Dashboard Overview</h2>
       
       {/* --- STAT CARDS --- */}
@@ -59,7 +86,7 @@ const Dashboard = () => {
             title="Total Bookings" 
             value={totalBookings} 
             icon={CalendarCheck} 
-            color="text-blue-600" 
+            color="text-orange-600" 
         />
         <StatCard 
             title="Pending Bookings" 
@@ -76,8 +103,8 @@ const Dashboard = () => {
         <StatCard 
             title="Total Revenue" 
             value={`₱${revenue.toLocaleString()}`} 
-            icon={PhilippinePeso} 
-            color="text-emerald-600" 
+            icon={Banknote} 
+            color="text-green-600" 
         />
       </div>
 
@@ -87,9 +114,8 @@ const Dashboard = () => {
           <h3 className="text-lg font-bold text-slate-800 mb-4">Recent Database Activity</h3>
           <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
             
-            {/* 1. Map Recent Bookings */}
             {bookings.slice(0, 3).map((b) => (
-              <div key={`booking-${b.id}`} className="flex items-start pb-4 border-b border-slate-100 last:border-0">
+              <div key={`booking-${b.userID || b.id || Math.random()}`} className="flex items-start pb-4 border-b border-slate-100 last:border-0">
                 <div className="bg-blue-50 p-2 rounded-lg mr-4">
                   <Camera className="w-5 h-5 text-blue-600" />
                 </div>
@@ -103,15 +129,13 @@ const Dashboard = () => {
               </div>
             ))}
 
-            {/* 2. Map Recent Students (Aligned with DB Columns) */}
             {students.slice(0, 3).map((s) => (
-              <div key={`student-${s.id}`} className="flex items-start pb-4 border-b border-slate-100 last:border-0">
+              <div key={`student-${s.id || Math.random()}`} className="flex items-start pb-4 border-b border-slate-100 last:border-0">
                 <div className="bg-violet-50 p-2 rounded-lg mr-4">
                   <UserPlus className="w-5 h-5 text-violet-600" />
                 </div>
                 <div>
                   <p className="font-medium text-slate-800">ID Application</p>
-                  {/* FIX: Using SQL column names (first_name, last_name) */}
                   <p className="text-sm text-slate-500 capitalize">
                     {s.first_name} {s.last_name} • {s.grade}
                   </p>
@@ -152,23 +176,35 @@ const Dashboard = () => {
                   {Array.from({ length: daysInMonth }).map((_, i) => {
                       const day = i + 1;
                       const { isOccupied, isToday } = getDayStatus(day);
+
+                      // --- CONDITIONAL STYLING ---
+                      let cellClass = "h-9 w-9 flex items-center justify-center rounded-full text-sm transition-all cursor-pointer ";
                       
+                      if (isOccupied) {
+                          cellClass += "bg-indigo-600 text-white font-bold shadow-sm hover:bg-indigo-700";
+                      } else if (isToday) {
+                          cellClass += "border-2 border-indigo-600 font-bold text-indigo-700 hover:bg-indigo-50";
+                      } else {
+                          cellClass += "text-slate-600 hover:bg-slate-100";
+                      }
+
                       return (
                           <div key={`day-${day}`} className="flex justify-center">
                               <div 
-                                  className={`
-                                    h-9 w-9 flex items-center justify-center rounded-full text-sm transition-all relative
-                                    ${isToday ? 'border-2 border-indigo-600 font-bold text-indigo-700' : ''}
-                                    ${isOccupied ? 'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-200' : 'text-slate-600 hover:bg-slate-100'}
-                                  `}
+                                  className={cellClass}
                                   title={isOccupied ? "Booked" : "Available"}
                               >
-                                  {day}
-                                  {isOccupied && isToday && <div className="absolute -bottom-1 w-1 h-1 bg-indigo-600 rounded-full"></div>}
+                                  <span className="leading-none">{day}</span>
                               </div>
                           </div>
                       );
                   })}
+              </div>
+              
+              {/* Legend */}
+              <div className="mt-4 flex items-center justify-end gap-4 text-xs text-slate-500">
+                  <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-indigo-600"></div> Upcoming Bookings</div>
+                  <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full border-2 border-indigo-600"></div> Today</div>
               </div>
           </div>
         </div>

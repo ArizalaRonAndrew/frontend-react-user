@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { DollarSign, Briefcase, Users } from "lucide-react";
+import { Banknote, Briefcase, Users } from "lucide-react";
 import { getAllBookings } from "../../services/BookingService";
 import { getAllStudents } from "../../services/StudentIdService";
 
@@ -22,7 +22,7 @@ const Reports = () => {
 
   const isDateInCurrentPeriod = (dateString) => {
     if (filterType === "All") return true;
-    if (!dateString) return false; // Safety check for missing dates
+    if (!dateString) return false;
 
     const date = new Date(dateString);
     const now = new Date();
@@ -55,13 +55,8 @@ const Reports = () => {
   );
 
   const approvedIDs = students.filter((s) => {
-    // 1. Check status (must match exactly what is in DB)
     const isApproved = s.status === "Approved";
-    
-    // 2. Check date. Backend typically uses 'created_at'. 
-    // fallback to dateSubmitted if created_at is missing, or just use today if testing manually without dates.
     const dateToCheck = s.created_at || s.dateSubmitted || s.date; 
-    
     return isApproved && isDateInCurrentPeriod(dateToCheck);
   });
 
@@ -107,7 +102,7 @@ const Reports = () => {
           </p>
         </div>
         <div className="bg-white/20 p-4 rounded-full">
-          <DollarSign className="w-8 h-8 text-white" />
+          <Banknote className="w-8 h-8 text-white" />
         </div>
       </div>
 
@@ -145,10 +140,16 @@ const Reports = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-600">
-                        {b.date}
+                         {/* Timezone Fix */}
+                        {new Date(b.date).toLocaleDateString(undefined, {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500 italic truncate max-w-[150px]">
-                        {b.package}
+                        {/* FIX: Changed from b.package to b.details */}
+                        {b.details}
                       </td>
                     </tr>
                   ))
@@ -184,27 +185,18 @@ const Reports = () => {
               <thead className="bg-white text-slate-500 text-xs uppercase font-semibold border-b border-slate-100">
                 <tr>
                   <th className="px-4 py-3">Student</th>
-                  <th className="px-4 py-3">Submitted</th>
                   <th className="px-4 py-3">Section</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {approvedIDs.length > 0 ? (
                   approvedIDs.map((s) => {
-                    // Determine which date to display
-                    const displayDate = s.created_at 
-                      ? new Date(s.created_at).toLocaleDateString() 
-                      : "Date N/A";
-                      
                     return (
                       <tr key={s.id} className="hover:bg-slate-50">
                         <td className="px-4 py-3">
                           <div className="text-sm font-bold text-slate-700">
                             {s.last_name}, {s.first_name}
                           </div>
-                        </td>
-                        <td className="px-4 py-3 text-xs font-mono text-slate-600">
-                          {displayDate}
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-500">
                           {s.grade} - {s.section}
@@ -215,7 +207,7 @@ const Reports = () => {
                 ) : (
                   <tr>
                     <td
-                      colSpan="3"
+                      colSpan="2"
                       className="text-center py-8 text-slate-400 text-sm italic"
                     >
                       No approved IDs found for{" "}
