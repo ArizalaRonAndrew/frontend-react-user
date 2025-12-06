@@ -14,19 +14,21 @@ const Reports = () => {
         getAllBookings(),
         getAllStudents(),
       ]);
-      setBookings(bData || []);
-      setStudents(sData || []);
+      setBookings(Array.isArray(bData) ? bData : []);
+      setStudents(Array.isArray(sData) ? sData : []);
     };
     fetchData();
   }, []);
 
   const isDateInCurrentPeriod = (dateString) => {
     if (filterType === "All") return true;
+    if (!dateString) return false; // Safety check for missing dates
+
     const date = new Date(dateString);
     const now = new Date();
-    date.setHours(0, 0, 0, 0);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
 
     if (filterType === "Daily") return date.getTime() === today.getTime();
     if (filterType === "Weekly") {
@@ -47,12 +49,22 @@ const Reports = () => {
     return true;
   };
 
+  // --- FILTERING LOGIC ---
   const completedBookings = bookings.filter(
     (b) => b.status === "Completed" && isDateInCurrentPeriod(b.date)
   );
-  const approvedIDs = students.filter(
-    (s) => s.status === "Approved" && isDateInCurrentPeriod(s.dateSubmitted)
-  ); // dateSubmitted might need to be added to backend or derived from createdAt
+
+  const approvedIDs = students.filter((s) => {
+    // 1. Check status (must match exactly what is in DB)
+    const isApproved = s.status === "Approved";
+    
+    // 2. Check date. Backend typically uses 'created_at'. 
+    // fallback to dateSubmitted if created_at is missing, or just use today if testing manually without dates.
+    const dateToCheck = s.created_at || s.dateSubmitted || s.date; 
+    
+    return isApproved && isDateInCurrentPeriod(dateToCheck);
+  });
+
   const totalRevenue = completedBookings.length * 5000;
   const filters = ["All", "Daily", "Weekly", "Monthly", "Yearly"];
 
@@ -76,6 +88,7 @@ const Reports = () => {
           ))}
         </div>
       </div>
+      
       <div className="bg-emerald-600 p-6 rounded-xl shadow-lg text-white flex justify-between items-center">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -97,7 +110,9 @@ const Reports = () => {
           <DollarSign className="w-8 h-8 text-white" />
         </div>
       </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Completed Bookings Table */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
           <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
             <h3 className="font-bold text-slate-700 flex items-center">
@@ -152,6 +167,8 @@ const Reports = () => {
             </table>
           </div>
         </div>
+
+        {/* Approved ID Submissions Table */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
           <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
             <h3 className="font-bold text-slate-700 flex items-center">
@@ -173,21 +190,28 @@ const Reports = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {approvedIDs.length > 0 ? (
-                  approvedIDs.map((s) => (
-                    <tr key={s.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3">
-                        <div className="text-sm font-bold text-slate-700">
-                          {s.lastname}, {s.firstname}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-xs font-mono text-slate-600">
-                        {s.dateSubmitted || "N/A"}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
-                        {s.grade} - {s.section}
-                      </td>
-                    </tr>
-                  ))
+                  approvedIDs.map((s) => {
+                    // Determine which date to display
+                    const displayDate = s.created_at 
+                      ? new Date(s.created_at).toLocaleDateString() 
+                      : "Date N/A";
+                      
+                    return (
+                      <tr key={s.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <div className="text-sm font-bold text-slate-700">
+                            {s.last_name}, {s.first_name}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono text-slate-600">
+                          {displayDate}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-500">
+                          {s.grade} - {s.section}
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <td

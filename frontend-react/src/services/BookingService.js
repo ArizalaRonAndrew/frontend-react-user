@@ -1,5 +1,6 @@
 import axios from "axios";
 
+// Adjust this URL if your backend runs on a different port or address
 const BASE_URL = "http://localhost:5000/api/bookings";
 
 /* --------------------------

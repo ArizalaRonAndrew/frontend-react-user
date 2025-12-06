@@ -16,7 +16,11 @@ function dataURLtoFile(dataurl, filename) {
   return new Blob([u8arr], { type: mime });
 }
 
-export async function submitStudentApplication(formData, photoDataURL, signatureDataURL) {
+export async function submitStudentApplication(
+  formData,
+  photoDataURL,
+  signatureDataURL
+) {
   const form = new FormData();
   form.append("lrn", formData.lrn);
   form.append("firstname", formData.firstname);
@@ -54,30 +58,36 @@ export async function submitStudentApplication(formData, photoDataURL, signature
 --------------------------- */
 
 export async function getAllStudents() {
-    try {
-        const response = await axios.get(BASE_URL);
-        // Backend returns: { success: true, students: [...] }
-        if (response.data && Array.isArray(response.data.students)) {
-            return response.data.students;
-        } 
-        return [];
-    } catch (error) {
-        console.error("Error fetching students:", error);
-        return [];
+  try {
+    const response = await axios.get(BASE_URL);
+    // Backend returns: { success: true, students: [...] }
+    if (response.data && Array.isArray(response.data.students)) {
+      return response.data.students;
     }
+    return [];
+  } catch (error) {
+    console.error("Error fetching students:", error);
+    return [];
+  }
 }
 
 export async function updateStudentStatus(id, status) {
-    // Placeholder until status column is added to DB
-    return { success: true };
+  try {
+    // Send a PUT request to update the student's status
+    const response = await axios.put(`${BASE_URL}/${id}`, { status });
+    return response.data;
+  } catch (error) {
+    console.error("Error updating student status:", error);
+    return { success: false, message: "Update failed" };
+  }
 }
 
 export async function deleteStudent(id) {
-    try {
-        const response = await axios.delete(`${BASE_URL}/${id}`);
-        return response.data;
-    } catch (error) {
-        console.error("Error deleting student:", error);
-        return null;
-    }
+  try {
+    const response = await axios.delete(`${BASE_URL}/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error deleting student:", error);
+    return null;
+  }
 }

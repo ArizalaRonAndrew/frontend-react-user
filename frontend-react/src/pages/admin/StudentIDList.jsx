@@ -33,10 +33,27 @@ const StudentIDList = () => {
   };
 
   const handleApprove = async (id) => {
-    await updateStudentStatus(id, "Approved");
-    fetchStudents();
-    if (selectedStudent && selectedStudent.id === id) {
-      setSelectedStudent({ ...selectedStudent, status: "Approved" });
+    if (!window.confirm("Are you sure you want to approve this application?")) return;
+
+    try {
+      const result = await updateStudentStatus(id, "Approved");
+
+      // Check if the operation was successful based on your backend response structure
+      if (result && (result.success || result.message === "Student updated successfully")) {
+        // Refresh the list to get the latest data
+        await fetchStudents();
+
+        // Update the local state of the selected student so the modal updates instantly
+        if (selectedStudent && selectedStudent.id === id) {
+          setSelectedStudent((prev) => ({ ...prev, status: "Approved" }));
+        }
+        alert("Application approved successfully.");
+      } else {
+        alert("Failed to approve application. Please check server logs.");
+      }
+    } catch (error) {
+      console.error("Approval error:", error);
+      alert("An error occurred while processing the approval.");
     }
   };
 
@@ -160,9 +177,14 @@ const StudentIDList = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      {/* DB doesn't have status col yet, defaulting to Pending visual */}
-                      <span className="px-2 py-1 text-xs font-bold rounded-full border bg-amber-50 text-amber-700 border-amber-200">
-                        Pending
+                      <span
+                        className={`px-2 py-1 text-xs font-bold rounded-full border ${
+                          student.status === "Approved"
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        }`}
+                      >
+                        {student.status || "Pending"}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -195,11 +217,19 @@ const StudentIDList = () => {
       >
         {selectedStudent && (
           <div className="space-y-6">
-            <div className="p-4 rounded-xl flex items-center justify-between shadow-sm bg-amber-100 text-amber-800">
+            <div
+              className={`p-4 rounded-xl flex items-center justify-between shadow-sm ${
+                selectedStudent.status === "Approved"
+                  ? "bg-green-100 text-green-800"
+                  : "bg-amber-100 text-amber-800"
+              }`}
+            >
               <span className="font-bold flex items-center gap-2">
                 <Clock className="w-5 h-5" />
                 Application Status:{" "}
-                <span className="uppercase tracking-wide">PENDING Review</span>
+                <span className="uppercase tracking-wide">
+                  {selectedStudent.status || "PENDING Review"}
+                </span>
               </span>
             </div>
 
@@ -336,12 +366,14 @@ const StudentIDList = () => {
               >
                 <Trash2 className="w-4 h-4 mr-2" /> Delete
               </button>
-              <button
-                onClick={() => handleApprove(selectedStudent.id)}
-                className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-200 transition"
-              >
-                <CheckCircle className="w-4 h-4 mr-2" /> Approve Application
-              </button>
+              {selectedStudent.status !== "Approved" && (
+                <button
+                  onClick={() => handleApprove(selectedStudent.id)}
+                  className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-200 transition"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" /> Approve Application
+                </button>
+              )}
             </div>
           </div>
         )}
