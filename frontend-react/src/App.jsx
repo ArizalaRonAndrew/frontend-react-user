@@ -1,16 +1,18 @@
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
-import LandingPage from "./pages/LandingPage.jsx";
-import ServiceDetails from "./pages/ServiceDetails.jsx";
-import BookingPage from "./pages/BookingPage.jsx";
-import StudentIdPage from "./pages/StudentIdPage.jsx";
-import LoginPage from "./pages/LoginPage.jsx";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 
-// Admin Imports
+// 1. Auth & Entry Pages
+import RoleSelection from "./pages/RoleSelection"; 
+import UserAuth from "./pages/UserAuth";           
+import AdminLogin from "./pages/AdminLogin";       
+
+// 2. Client Side Pages
+import UserLandingPage from "./pages/LandingPage"; // Ensure this matches your file name
+import Services from "./components/Services";
+import BookingPage from "./pages/BookingPage";
+import StudentIdPage from "./pages/StudentIdPage";
+import ServiceDetails from "./pages/ServiceDetails";
+
+// 3. Admin Side Pages
 import AdminLayout from "./layouts/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import BookingList from "./pages/admin/BookingList";
@@ -18,32 +20,36 @@ import StudentIDList from "./pages/admin/StudentIDList";
 import ManageServices from "./pages/admin/ManageServices";
 import Reports from "./pages/admin/Reports";
 
-// Basic Route Protection
+// 4. Protection Wrapper
 const ProtectedAdminRoute = ({ children }) => {
   const token = localStorage.getItem("authToken");
-  return token ? children : <Navigate to="/login" replace />;
+  return token ? children : <Navigate to="/admin-login" replace />;
 };
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* Public User Routes */}
-        <Route path="/" element={<LandingPage />} />
+        {/* --- MAIN ENTRY --- */}
+        <Route path="/" element={<RoleSelection />} />
+
+        {/* --- AUTH --- */}
+        <Route path="/user-auth" element={<UserAuth />} />
+        <Route path="/admin-login" element={<AdminLogin />} />
+
+        {/* --- CLIENT FLOW --- */}
+        <Route path="/home" element={<UserLandingPage />} />
+        <Route path="/services" element={<Services />} />
         <Route path="/booking" element={<BookingPage />} />
         <Route path="/student-id" element={<StudentIdPage />} />
         <Route path="/service/:serviceId" element={<ServiceDetails />} />
-        <Route path="/login" element={<LoginPage />} />
 
-        {/* Protected Admin Routes */}
-        <Route
-          path="/admin"
-          element={
+        {/* --- ADMIN FLOW --- */}
+        <Route path="/admin" element={
             <ProtectedAdminRoute>
               <AdminLayout />
             </ProtectedAdminRoute>
-          }
-        >
+        }>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="bookings" element={<BookingList />} />
@@ -51,6 +57,7 @@ function App() {
           <Route path="manage" element={<ManageServices />} />
           <Route path="reports" element={<Reports />} />
         </Route>
+
       </Routes>
     </Router>
   );

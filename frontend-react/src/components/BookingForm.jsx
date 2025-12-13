@@ -1,55 +1,126 @@
 import { useEffect, useState } from "react";
-import { getPackages, submitBooking, readQueryParams } from "../services/BookingService";
+import { useLocation } from "react-router-dom"; 
+import { submitBooking } from "../services/BookingService"; 
 
-// Helper component for cleaner detail rendering in the modal
 const DetailItem = ({ label, value, isPrimary = false }) => (
   <div className="flex justify-between items-start py-2 border-b border-gray-100 last:border-b-0">
-    <span className={`font-medium text-gray-500 ${isPrimary ? "text-lg text-indigo-700" : "text-base"}`}>{label}</span>
+    <span className={`font-medium text-gray-500 ${isPrimary ? "text-lg text-indigo-700" : "text-base"}`}>
+      {label}
+    </span>
     <span className={`font-semibold text-right ${isPrimary ? "text-indigo-900 text-lg" : "text-gray-900 text-base"}`}>
       {value || <span className="text-gray-400 italic">N/A</span>}
     </span>
   </div>
 );
 
+// --- MODIFIED: General Status Modal (Success & Error) ---
+const StatusModal = ({ type, title, message, onClose }) => {
+    const isSuccess = type === "success";
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fadeIn">
+        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm text-center transform transition-all scale-100">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                isSuccess ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+            }`}>
+            <span className="text-3xl">{isSuccess ? "✔" : "⚠️"}</span>
+            </div>
+            <h3 className={`text-xl font-bold mb-2 ${isSuccess ? "text-green-800" : "text-gray-900"}`}>
+                {title || (isSuccess ? "Success" : "Notice")}
+            </h3>
+            <p className="text-gray-600 mb-6">{message}</p>
+            <button 
+            onClick={onClose}
+            className={`w-full py-2.5 font-bold rounded-lg transition ${
+                isSuccess 
+                ? "bg-green-600 hover:bg-green-700 text-white" 
+                : "bg-red-600 hover:bg-red-700 text-white"
+            }`}
+            >
+            {isSuccess ? "Great!" : "Okay, I understand"}
+            </button>
+        </div>
+        </div>
+    );
+};
+
 export default function BookingForm() {
+  const location = useLocation(); 
+
   const initialFormData = {
     fullname: "",
     email: "",
     phonenumber: "",
     location: "",
-    category: "",
-    Package_type: "",
+    category: "", 
+    Package_type: "", 
     date: "",
     time: "",
     details: "",
   };
 
   const [formData, setFormData] = useState(initialFormData);
-  const [packageOptions, setPackageOptions] = useState([]);
+  const [allServices, setAllServices] = useState([]); 
+  const [packageOptions, setPackageOptions] = useState([]); 
   const [loading, setLoading] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+  
+  // Modal States
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  
+  // --- UNIFIED MODAL STATE (Replaces ErrorModal and Alerts) ---
+  const [statusModal, setStatusModal] = useState({ 
+    show: false, 
+    type: "error", // 'error' or 'success'
+    title: "", 
+    message: "" 
+  });
 
-  // AUTO-FILL when arriving from service-details.html
-  useEffect(() => {
-    const { service, package: pkg } = readQueryParams();
-
-    if (service) {
-      handleChange({ target: { name: "category", value: service } });
-
-      const packages = getPackages(service);
-      setPackageOptions(packages);
-
-      if (pkg) {
-        setFormData((prev) => ({ ...prev, Package_type: pkg }));
-      }
+  // API Check
+  const checkDateAvailability = async (selectedDate) => {
+    try {
+        const response = await fetch(`http://localhost:5000/api/bookings/check-availability?date=${selectedDate}`);
+        const data = await response.json();
+        return data.available; 
+    } catch (error) {
+        console.error("Error checking availability:", error);
+        return true; 
     }
-  }, []);
+  };
 
-  // Handle input changes
-  const handleChange = (e) => {
+  useEffect(() => {
+    const initBooking = async () => {
+        try {
+            const response = await fetch("http://localhost:5000/api/services");
+            const servicesData = await response.json();
+            setAllServices(servicesData);
+
+            const params = new URLSearchParams(location.search);
+            const serviceParam = params.get("service");
+            const packageParam = params.get("package");
+
+            if (serviceParam) {
+                const decodedService = decodeURIComponent(serviceParam);
+                const decodedPackage = packageParam ? decodeURIComponent(packageParam) : "";
+                const matchedService = servicesData.find(s => s.name === decodedService);
+
+                if (matchedService) {
+                    setFormData(prev => ({
+                        ...prev,
+                        category: matchedService.name,
+                        Package_type: decodedPackage
+                    }));
+                    setPackageOptions(matchedService.packages || []);
+                }
+            }
+        } catch (error) {
+            console.error("Error initializing booking form:", error);
+        }
+    };
+    initBooking();
+  }, [location]);
+
+  const handleChange = async (e) => {
     const { name, value } = e.target;
 
-    // Limit phone number to 11 digits numeric only
     if (name === "phonenumber") {
       let numericValue = value.replace(/\D/g, "");
       if (numericValue.length > 11) numericValue = numericValue.slice(0, 11);
@@ -57,44 +128,95 @@ export default function BookingForm() {
       return;
     }
 
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === "date") {
+        setFormData((prev) => ({ ...prev, [name]: value })); 
+
+        const isAvailable = await checkDateAvailability(value);
+
+        if (!isAvailable) {
+            setFormData((prev) => ({ ...prev, date: "" })); 
+            // --- USE STATUS MODAL FOR DATE ERROR ---
+            setStatusModal({ 
+                show: true, 
+                type: "error",
+                title: "Date Unavailable",
+                message: "This date is already booked (Pending or Confirmed). Please choose another date." 
+            });
+            return; 
+        }
+    } else {
+        setFormData((prev) => ({ ...prev, [name]: value }));
+    }
 
     if (name === "category") {
-      const pkgList = getPackages(value);
-      setPackageOptions(pkgList);
+      const selectedServiceObj = allServices.find(s => s.name === value);
+      if (selectedServiceObj) {
+          setPackageOptions(selectedServiceObj.packages || []);
+      } else {
+          setPackageOptions([]);
+      }
       setFormData((prev) => ({ ...prev, Package_type: "" }));
     }
   };
 
-  // Reset form
   const handleReset = () => {
     setPackageOptions([]);
     setFormData(initialFormData);
   };
 
-  // Open review modal
   const openReviewModal = (e) => {
     e.preventDefault();
-    // Optional: prevent opening modal if phone is invalid
     if (formData.phonenumber.length !== 11) {
-      alert("Please enter a valid 11-digit phone number.");
+      // --- USE STATUS MODAL FOR PHONE ERROR ---
+      setStatusModal({
+        show: true,
+        type: "error",
+        title: "Invalid Phone Number",
+        message: "Please enter a valid 11-digit phone number."
+      });
       return;
     }
-    setShowModal(true);
+    setShowReviewModal(true);
   };
 
-  // Submit booking
   const handleSubmit = async () => {
     setLoading(true);
+
+    const isAvailable = await checkDateAvailability(formData.date);
+    if (!isAvailable) {
+        setLoading(false);
+        setShowReviewModal(false);
+        setFormData((prev) => ({ ...prev, date: "" }));
+        // --- USE STATUS MODAL FOR DATE ERROR (SUBMIT) ---
+        setStatusModal({ 
+            show: true, 
+            type: "error",
+            title: "Date Taken",
+            message: "Someone just booked this date! Please select another one." 
+        });
+        return;
+    }
 
     const result = await submitBooking(formData);
 
     if (result.success) {
-      alert("Booking submitted successfully!");
+      // --- USE STATUS MODAL FOR SUCCESS ---
       handleReset();
-      setShowModal(false);
+      setShowReviewModal(false);
+      setStatusModal({ 
+        show: true, 
+        type: "success",
+        title: "Booking Confirmed!",
+        message: "Your session has been successfully booked. We'll contact you shortly." 
+      });
     } else {
-      alert("Failed to submit booking.");
+      // --- USE STATUS MODAL FOR FAILURE ---
+      setStatusModal({
+        show: true,
+        type: "error",
+        title: "Booking Failed",
+        message: "Failed to submit booking. Please try again."
+      });
     }
 
     setLoading(false);
@@ -167,11 +289,12 @@ export default function BookingForm() {
                     required
                     className="w-full px-5 py-4 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 shadow-sm transition"
                   />
-                  {formData.phonenumber.length > 0 && formData.phonenumber.length < 11 && (
-                    <p className="text-red-500 text-sm mt-1">
-                      Phone number must be 11 digits
-                    </p>
-                  )}
+                  {formData.phonenumber.length > 0 &&
+                    formData.phonenumber.length < 11 && (
+                      <p className="text-red-500 text-sm mt-1">
+                        Phone number must be 11 digits
+                      </p>
+                    )}
                 </div>
               </div>
 
@@ -209,13 +332,11 @@ export default function BookingForm() {
                     className="w-full px-5 py-4 rounded-xl border border-gray-300 bg-white shadow-sm transition"
                   >
                     <option value="">Select a service</option>
-                    <option value="wedding">Wedding Photography</option>
-                    <option value="debut">Debut Photography</option>
-                    <option value="portrait">Portrait Session</option>
-                    <option value="events">Special Events</option>
-                    <option value="birthday">Birthday Event</option>
-                    <option value="corporate">Corporate Event</option>
-                    <option value="other">Other</option>
+                    {allServices.map((service) => (
+                        <option key={service.id} value={service.name}>
+                            {service.name}
+                        </option>
+                    ))}
                   </select>
                 </div>
 
@@ -236,11 +357,13 @@ export default function BookingForm() {
                     }`}
                   >
                     <option value="">
-                      {formData.category ? "Select a package" : "Select service first"}
+                      {formData.category
+                        ? "Select a package"
+                        : "Select service first"}
                     </option>
                     {packageOptions.map((pkg) => (
-                      <option key={pkg} value={pkg}>
-                        {pkg}
+                      <option key={pkg.id} value={pkg.name}>
+                        {pkg.name} - {pkg.price.toString().includes('₱') ? pkg.price : `₱${pkg.price}`}
                       </option>
                     ))}
                   </select>
@@ -322,17 +445,29 @@ export default function BookingForm() {
         </div>
       </section>
 
+      {/* UNIFIED STATUS MODAL (For Error, Success, Date Check, Phone Check) */}
+      {statusModal.show && (
+        <StatusModal 
+            type={statusModal.type}
+            title={statusModal.title}
+            message={statusModal.message}
+            onClose={() => setStatusModal(prev => ({ ...prev, show: false }))}
+        />
+      )}
+
       {/* CONFIRMATION MODAL */}
-      {showModal && (
+      {showReviewModal && (
         <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4">
-          <div className="bg-white max-w-4xl w-full rounded-2xl shadow-2xl p-6 md:p-8 lg:p-10 transition-all max-h-[90vh] overflow-y-auto"> 
+          <div className="bg-white max-w-4xl w-full rounded-2xl shadow-2xl p-6 md:p-8 lg:p-10 transition-all max-h-[90vh] overflow-y-auto">
             <h2 className="text-4xl font-extrabold text-center text-indigo-800 mb-8 border-b-4 border-indigo-100 pb-3">
               Review & Confirm Your Booking
             </h2>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-6">
               <div className="space-y-4 p-4 border border-gray-100 rounded-xl bg-gray-50/50 shadow-sm">
-                <h3 className="text-2xl font-bold text-indigo-700 mb-3 border-b pb-1">Client Details 👤</h3>
+                <h3 className="text-2xl font-bold text-indigo-700 mb-3 border-b pb-1">
+                  Client Details 👤
+                </h3>
                 <DetailItem label="Full Name" value={formData.fullname} />
                 <DetailItem label="Email" value={formData.email} />
                 <DetailItem label="Phone Number" value={formData.phonenumber} />
@@ -340,24 +475,37 @@ export default function BookingForm() {
               </div>
 
               <div className="space-y-4 p-4 border border-gray-100 rounded-xl bg-gray-50/50 shadow-sm">
-                <h3 className="text-2xl font-bold text-indigo-700 mb-3 border-b pb-1">Booking Info 📅</h3>
-                <DetailItem label="Service Type" value={formData.category} isPrimary={true}/>
-                <DetailItem label="Package Type" value={formData.Package_type} isPrimary={true}/>
+                <h3 className="text-2xl font-bold text-indigo-700 mb-3 border-b pb-1">
+                  Booking Info 📅
+                </h3>
+                <DetailItem
+                  label="Service Type"
+                  value={formData.category}
+                  isPrimary={true}
+                />
+                <DetailItem
+                  label="Package Type"
+                  value={formData.Package_type}
+                  isPrimary={true}
+                />
                 <DetailItem label="Preferred Date" value={formData.date} />
                 <DetailItem label="Preferred Time" value={formData.time} />
               </div>
             </div>
 
             <div className="mt-8 p-4 border border-gray-200 rounded-xl bg-white shadow-md">
-              <h3 className="text-2xl font-bold text-gray-700 mb-3 border-b pb-1">Additional Notes 📝</h3>
+              <h3 className="text-2xl font-bold text-gray-700 mb-3 border-b pb-1">
+                Additional Notes 📝
+              </h3>
               <p className="whitespace-pre-line text-gray-700 px-2 py-2 min-h-[60px] italic">
-                {formData.details || "No additional notes were provided for this booking."}
+                {formData.details ||
+                  "No additional notes were provided for this booking."}
               </p>
             </div>
 
             <div className="flex justify-end gap-4 mt-8 pt-4 border-t border-gray-200">
               <button
-                onClick={() => setShowModal(false)}
+                onClick={() => setShowReviewModal(false)}
                 className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition shadow"
               >
                 ✏️ Go Back & Edit
@@ -377,4 +525,3 @@ export default function BookingForm() {
     </>
   );
 }
-

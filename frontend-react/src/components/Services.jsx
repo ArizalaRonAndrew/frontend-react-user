@@ -1,12 +1,30 @@
-import ServiceCard from "./ServiceCard";
+import React, { useState, useEffect } from "react";
+import ServiceCard from "../components/ServiceCard"; // Adjust path if needed
 
 export default function Services() {
-    const services = [
-        { key: "wedding", title: "Wedding Photography", image: "https://images.unsplash.com/photo-1758905728020-a888617aecd0", desc: "Complete coverage from preparation to reception" },
-        { key: "debut", title: "Debut Photography", image: "https://images.unsplash.com/photo-1761331051932-c3fdd6c3e661", desc: "Elegant 18th birthday celebration coverage" },
-        { key: "portrait", title: "Portrait Sessions", image: "https://images.unsplash.com/photo-1544124094-8aea0374da93", desc: "Professional studio and outdoor portraits" },
-        { key: "events", title: "Special Events", image: "https://images.unsplash.com/photo-1758738180856-7538f9dd4ac4", desc: "Birthdays, anniversaries, corporate events" }
-    ];
+    const [services, setServices] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch data from Database
+    useEffect(() => {
+        const fetchServices = async () => {
+            try {
+                const response = await fetch("http://localhost:5000/api/services");
+                const data = await response.json();
+                setServices(data);
+                setLoading(false);
+            } catch (error) {
+                console.error("Error fetching services:", error);
+                setLoading(false);
+            }
+        };
+
+        fetchServices();
+    }, []);
+
+    if (loading) {
+        return <div className="text-center py-20">Loading services...</div>;
+    }
 
     return (
         <section id="services" className="py-20 bg-slate-50">
@@ -16,17 +34,18 @@ export default function Services() {
                     <p className="text-gray-600">Photography services tailored for your moments</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {services.map((s, i) => (
-                        <ServiceCard
-                            key={i} 
-                            id={s.key} // use key as id for routing
-                            title={s.title}
-                            image={s.image}
-                            desc={s.desc}
-                        />
-                    ))}
-                </div>
+                {services.length === 0 ? (
+                    <div className="text-center text-gray-500">No services available at the moment.</div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {services.map((service) => (
+                            <ServiceCard
+                                key={service.id} 
+                                serviceData={service} // Pass the FULL object from DB
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
         </section>
     );
