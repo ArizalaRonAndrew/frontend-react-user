@@ -89,5 +89,21 @@ export const AuthService = {
 
     getToken() {
         return localStorage.getItem("authToken");
+    },
+    
+    // NEW: Helper to safely retrieve the user's ID
+    getCurrentUserID() {
+        const user = localStorage.getItem("user");
+        if (user) {
+            try {
+                const userData = JSON.parse(user);
+                // Assuming the user object stored in localStorage has an 'id' or 'userID' field
+                return userData.id || userData.userID; 
+            } catch (e) {
+                console.error("Error parsing user data from localStorage:", e);
+                return null;
+            }
+        }
+        return null;
     }
 };

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { AuthService } from "./AuthService"; // <<< ADDED IMPORT
 
 // Ensure port matches your backend (5000 based on your previous files)
 const BASE_URL = "http://localhost:5000/api/student-id";
@@ -52,6 +53,37 @@ export async function submitStudentApplication(
     return { success: false, message: "Application failed." };
   }
 }
+
+// NEW: Function to get applications for the current user
+export async function getUserStudentApplications() {
+  // Get the current user ID (assuming this returns the student's LRN/ID)
+  const userId = AuthService.getCurrentUserID(); 
+  const token = AuthService.getToken(); 
+
+  if (!userId || !token) {
+    console.error("Cannot fetch user applications: User or token missing.");
+    return [];
+  }
+  
+  try {
+    const config = {
+        headers: { Authorization: `Bearer ${token}` },
+    };
+    
+    // Calls the new backend route /api/student-id/user/:id
+    const response = await axios.get(`${BASE_URL}/user/${userId}`, config); 
+    
+    // Backend returns: { success: true, applications: [...] }
+    if (response.data && Array.isArray(response.data.applications)) {
+        return response.data.applications;
+    }
+    return [];
+  } catch (error) {
+    console.error("Error fetching user applications:", error.response?.data?.message || error.message);
+    return [];
+  }
+}
+
 
 /* --------------------------
    ADMIN-SIDE FUNCTIONS
