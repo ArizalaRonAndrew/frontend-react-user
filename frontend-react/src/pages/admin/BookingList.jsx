@@ -13,7 +13,7 @@ const BookingList = () => {
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     action: null, 
-    id: null,
+    id: null, // This will now store the unique bookingID
     payload: null, 
     title: "",
     message: "",
@@ -31,9 +31,45 @@ const BookingList = () => {
 
   const fetchBookings = async () => {
     setLoading(true);
-    const data = await getAllBookings();
-    setBookings(Array.isArray(data) ? data : []);
-    setLoading(false);
+    try {
+      const data = await getAllBookings();
+      console.log("Fetched booking data (full):", JSON.stringify(data, null, 2));
+      
+      if (Array.isArray(data)) {
+        // Remove duplicates based on bookingID to prevent React key errors
+        const uniqueBookings = [];
+        const seenIds = new Set();
+        const duplicatesFound = [];
+        
+        data.forEach(booking => {
+          const id = booking.bookingID;
+          if (!seenIds.has(id)) {
+            seenIds.add(id);
+            uniqueBookings.push(booking);
+          } else {
+            duplicatesFound.push({ id, booking });
+            console.warn(`Removing duplicate booking with ID: ${id}`, booking);
+          }
+        });
+        
+        if (duplicatesFound.length > 0) {
+          console.error(`🚨 Found ${duplicatesFound.length} duplicate booking records`);
+          console.error("Duplicate details:", duplicatesFound);
+        }
+        
+        console.log(`Deduplication: ${data.length} → ${uniqueBookings.length} records`);
+        
+        setBookings(uniqueBookings);
+      } else {
+        console.error("❌ API did not return an array:", data);
+        setBookings([]);
+      }
+    } catch (error) {
+      console.error("Error fetching bookings:", error);
+      setBookings([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getStatusColor = (status) => {
@@ -47,6 +83,7 @@ const BookingList = () => {
   };
 
   // --- REQUEST HANDLERS ---
+  // Updated to accept unique bookingID
   const requestStatusUpdate = (id, newStatus) => {
     let isDanger = newStatus === 'Cancelled';
     let message = `Are you sure you want to change the status to ${newStatus}?`;
@@ -58,7 +95,7 @@ const BookingList = () => {
     setConfirmModal({
       isOpen: true,
       action: 'update',
-      id,
+      id, // bookingID
       payload: newStatus,
       title: `Mark as ${newStatus}`,
       message,
@@ -66,22 +103,24 @@ const BookingList = () => {
     });
   };
 
+  // Updated to accept unique bookingID
   const requestArchive = (id) => {
     setConfirmModal({
       isOpen: true,
       action: 'archive', 
-      id,
+      id, // bookingID
       title: "Archive Record",
       message: "This will remove the booking from this list but KEEP it in your Reports revenue. Proceed?",
       isDanger: false 
     });
   };
 
+  // Updated to accept unique bookingID
   const requestDelete = (id) => {
     setConfirmModal({
       isOpen: true,
       action: 'delete',
-      id,
+      id, // bookingID
       title: "Delete Permanently",
       message: "Are you sure? This will permanently remove this record from the database and reports.",
       isDanger: true
@@ -123,6 +162,7 @@ const BookingList = () => {
     const { action, id, payload } = confirmModal;
 
     if (action === 'update') {
+      // id is now bookingID
       const result = await updateBookingStatus(id, payload);
       if (result && result.success) {
         fetchBookings();
@@ -130,6 +170,7 @@ const BookingList = () => {
       }
     } 
     else if (action === 'archive') {
+      // id is now bookingID
        const result = await updateBookingStatus(id, 'Archived');
        if (result && result.success) {
          fetchBookings();
@@ -137,6 +178,7 @@ const BookingList = () => {
        }
     }
     else if (action === 'delete') {
+      // id is now bookingID
       const result = await deleteBooking(id);
       if (result && result.success) {
         fetchBookings();
@@ -146,7 +188,8 @@ const BookingList = () => {
     else if (action === 'archiveAll') {
         const bookingsToArchive = bookings.filter(b => b.status === 'Completed');
         await Promise.all(
-            bookingsToArchive.map(booking => updateBookingStatus(booking.userID, 'Archived'))
+            // Use bookingID for batch update
+            bookingsToArchive.map(booking => updateBookingStatus(booking.bookingID, 'Archived'))
         );
         fetchBookings();
         setSelectedBooking(null);
@@ -154,7 +197,8 @@ const BookingList = () => {
     else if (action === 'deleteBatch') {
         const bookingsToDelete = bookings.filter(b => b.status === 'Cancelled');
         await Promise.all(
-            bookingsToDelete.map(booking => deleteBooking(booking.userID))
+            // Use bookingID for batch delete
+            bookingsToDelete.map(booking => deleteBooking(booking.bookingID))
         );
         fetchBookings();
         setSelectedBooking(null);
@@ -167,7 +211,8 @@ const BookingList = () => {
   const filteredBookings = bookings
     .filter((booking) => {
         const name = booking.fullname || "";
-        const idStr = booking.userID ? booking.userID.toString() : "";
+        // Use bookingID for search visibility, or keep userID if desired, but bookingID is unique.
+        const idStr = booking.bookingID ? booking.bookingID.toString() : ""; 
         const status = booking.status || "Pending";
         
         if (status === 'Archived') return false; 
@@ -178,7 +223,8 @@ const BookingList = () => {
         return matchesSearch && matchesStatus;
     })
     .sort((a, b) => {
-        if (sortOption === "by_id") return b.userID - a.userID; // Descending ID usually better
+        // Use bookingID for sorting by ID
+        if (sortOption === "by_id") return b.bookingID - a.bookingID; 
         if (sortOption === "by_date") return new Date(a.date) - new Date(b.date);
         return 0;
     });
@@ -284,11 +330,13 @@ const BookingList = () => {
               {loading ? (
                 <tr><td colSpan="4" className="p-8 text-center text-slate-400">Loading bookings...</td></tr>
               ) : filteredBookings.length > 0 ? (
-                filteredBookings.map((booking) => (
-                  <tr key={booking.userID} className="hover:bg-slate-50 transition group">
+                filteredBookings.map((booking, index) => (
+                  // FIXED: Use bookingID as key (should now be unique due to deduplication)
+                  <tr key={booking.bookingID} className="hover:bg-slate-50 transition group">
                     <td className="px-6 py-4">
                       <div className="font-bold text-slate-800">{booking.fullname}</div>
-                      <div className="text-xs text-slate-500">ID: #{booking.userID}</div>
+                      {/* Use bookingID for display */}
+                      <div className="text-xs text-slate-500">Booking ID: #{booking.bookingID}</div> 
                     </td>
                     <td className="px-6 py-4">
                       {/* UPDATED: Display Service (Category) and Package */}
@@ -312,21 +360,22 @@ const BookingList = () => {
                         
                         {(booking.status || "Pending") === 'Pending' && (
                           <>
-                            <button onClick={() => requestStatusUpdate(booking.userID, 'Confirmed')} className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition"><CheckCircle className="w-4 h-4" /></button>
-                            <button onClick={() => requestStatusUpdate(booking.userID, 'Cancelled')} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"><XCircle className="w-4 h-4" /></button>
+                            {/* FIX: Use bookingID */}
+                            <button onClick={() => requestStatusUpdate(booking.bookingID, 'Confirmed')} className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition"><CheckCircle className="w-4 h-4" /></button>
+                            <button onClick={() => requestStatusUpdate(booking.bookingID, 'Cancelled')} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"><XCircle className="w-4 h-4" /></button>
                           </>
                         )}
 
                         {booking.status === 'Confirmed' && (
-                            <button onClick={() => requestStatusUpdate(booking.userID, 'Completed')} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Mark as Completed"><CheckSquare className="w-4 h-4" /></button>
+                          <button onClick={() => requestStatusUpdate(booking.bookingID, 'Completed')} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Mark as Completed"><CheckSquare className="w-4 h-4" /></button>
                         )}
                         
                         {booking.status === 'Completed' && (
-                           <button onClick={() => requestArchive(booking.userID)} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Hide from list (Archive)"><Archive className="w-4 h-4" /></button>
+                          <button onClick={() => requestArchive(booking.bookingID)} className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Hide from list (Archive)"><Archive className="w-4 h-4" /></button>
                         )}
 
                         {booking.status === 'Cancelled' && (
-                          <button onClick={() => requestDelete(booking.userID)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Delete Permanently"><Trash2 className="w-4 h-4" /></button>
+                          <button onClick={() => requestDelete(booking.bookingID)} className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Delete Permanently"><Trash2 className="w-4 h-4" /></button>
                         )}
                       </div>
                     </td>
@@ -411,23 +460,25 @@ const BookingList = () => {
             <div className="flex gap-3 pt-2 border-t border-slate-100">
                 {(selectedBooking.status || "Pending") === 'Pending' && (
                     <>
-                        <button onClick={() => requestStatusUpdate(selectedBooking.userID, 'Cancelled')} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition">Reject</button>
-                        <button onClick={() => requestStatusUpdate(selectedBooking.userID, 'Confirmed')} className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition">Approve Booking</button>
+                        {/* FIX: Use bookingID */}
+                        <button onClick={() => requestStatusUpdate(selectedBooking.bookingID, 'Cancelled')} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition">Reject</button>
+                        <button onClick={() => requestStatusUpdate(selectedBooking.bookingID, 'Confirmed')} className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition">Approve Booking</button>
                     </>
                 )}
                  {selectedBooking.status === 'Confirmed' && (
                     <>
-                        <button onClick={() => requestStatusUpdate(selectedBooking.userID, 'Cancelled')} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition">Cancel Booking</button>
-                        <button onClick={() => requestStatusUpdate(selectedBooking.userID, 'Completed')} className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition flex items-center justify-center gap-2"><CheckSquare className="w-4 h-4" /> Mark as Completed</button>
+                        {/* FIX: Use bookingID */}
+                        <button onClick={() => requestStatusUpdate(selectedBooking.bookingID, 'Cancelled')} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition">Cancel Booking</button>
+                        <button onClick={() => requestStatusUpdate(selectedBooking.bookingID, 'Completed')} className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition flex items-center justify-center gap-2"><CheckSquare className="w-4 h-4" /> Mark as Completed</button>
                     </>
                 )}
                 
                 {selectedBooking.status === 'Completed' && (
-                      <button onClick={() => requestArchive(selectedBooking.userID)} className="flex-1 py-3 rounded-xl border border-blue-200 text-blue-600 font-bold hover:bg-blue-50 transition flex items-center justify-center gap-2"><Archive className="w-4 h-4" /> Archive Record</button>
+                  <button onClick={() => requestArchive(selectedBooking.bookingID)} className="flex-1 py-3 rounded-xl border border-blue-200 text-blue-600 font-bold hover:bg-blue-50 transition flex items-center justify-center gap-2"><Archive className="w-4 h-4" /> Archive Record</button>
                 )}
                 
                 {selectedBooking.status === 'Cancelled' && (
-                      <button onClick={() => requestDelete(selectedBooking.userID)} className="flex-1 py-3 rounded-xl border border-red-200 text-red-600 font-bold hover:bg-red-50 transition flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> Delete Record</button>
+                  <button onClick={() => requestDelete(selectedBooking.bookingID)} className="flex-1 py-3 rounded-xl border border-red-200 text-red-600 font-bold hover:bg-red-50 transition flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> Delete Record</button>
                 )}
             </div>
           </div>
